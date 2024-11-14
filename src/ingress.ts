@@ -50,14 +50,20 @@ export interface IngressProps extends base.ResourceProps {
   readonly className?: string;
 
   /**
-   * A custom comparison function used to sort ingress paths.
-   * This function compares two `HttpIngressPath` objects, `a` and `b`, and returns:
+   * A custom comparison object for sorting ingress paths.
+   * 
+   * The `pathCompare` property allows you to define a specific sorting order for ingress paths 
+   * by providing a custom comparison function. When this function is applied, it determines the 
+   * relative order of two `HttpIngressPath` objects in the sorted array. 
+   * 
+   * The function should return:
    *   - A negative number if `a` should appear before `b`
    *   - A positive number if `a` should appear after `b`
-   *   - Zero if their order does not matter.
-   * This function can be customized to control how ingress paths are ordered when applied to an array of paths.
+   *   - Zero if the order between `a` and `b` does not matter
+   * 
+   * Use this to control the exact order of ingress paths based on custom criteria.
    */
-  readonly pathCompareFn?: ((a: k8s.HttpIngressPath, b: k8s.HttpIngressPath) => number);
+  readonly pathCompare?: IngressPathComparator;
 }
 
 /**
@@ -100,12 +106,12 @@ export class Ingress extends base.Resource {
   private readonly _rulesPerHost: { [host: string]: k8s.HttpIngressPath[] } = {};
   private _defaultBackend?: IngressBackend;
   private readonly _tlsConfig: IngressTls[] = [];
-  private readonly _pathCompareFn: ((a: k8s.HttpIngressPath, b: k8s.HttpIngressPath) => number)
+  private readonly _pathCompare: IngressPathComparator;
 
   constructor(scope: Construct, id: string, props: IngressProps = {}) {
     super(scope, id);
 
-    this._pathCompareFn = props.pathCompareFn ?? sortByPath
+    this._pathCompare = props.pathCompare ?? new IngressPathComparator()
 
     this.apiObject = new k8s.KubeIngress(this, 'Resource', {
       metadata: props.metadata,
@@ -230,7 +236,7 @@ export class Ingress extends base.Resource {
     for (const [host, paths] of Object.entries(this._rulesPerHost)) {
       rules.push({
         host: host ? host : undefined,
-        http: { paths: paths.sort(this._pathCompareFn) },
+        http: { paths: paths.sort(this._pathCompare.compare) },
       });
     }
 
@@ -416,8 +422,10 @@ export interface IngressTls {
   readonly secret?: secret.ISecret;
 }
 
-function sortByPath(lhs: k8s.HttpIngressPath, rhs: k8s.HttpIngressPath) {
-  const p1 = lhs.path ?? '';
-  const p2 = rhs.path ?? '';
-  return p1.localeCompare(p2);
+export class IngressPathComparator {
+  public compare(lhs: k8s.HttpIngressPath, rhs: k8s.HttpIngressPath): number {
+    const p1 = lhs.path ?? '';
+    const p2 = rhs.path ?? '';
+    return p1.localeCompare(p2);
+  }
 }
