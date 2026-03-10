@@ -7,6 +7,7 @@ import { KubePersistentVolumeClaimProps, PodSpec, Quantity, VolumeResourceRequir
 import { PersistentVolumeClaimProps } from './pvc';
 import * as service from './service';
 import * as workload from './workload';
+import { PercentOrAbsolute } from './deployment';
 
 /**
  * Controls how pods are created during initial scale up, when replacing pods on nodes,
@@ -321,6 +322,18 @@ export interface StatefulSetUpdateStrategyRollingUpdateOptions {
    */
   readonly partition?: number;
 
+  /**
+   * The maximum number of pods that can be unavailable during the update.
+   * Value can be an absolute number (e.g. 5) or a percentage of desired pods (e.g. 10%).
+   * Absolute number is calculated from percentage by rounding up.
+   * * When this is set, the update will happen in a faster way by taking down multiple 
+   * pods at once, while still respecting the partition limit if one is set.
+   *
+   * @see https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#rolling-updates
+   * @default 1
+   */
+  readonly maxUnavailable?: PercentOrAbsolute;
+
 }
 
 /**
@@ -349,7 +362,10 @@ export class StatefulSetUpdateStrategy {
 
     return new StatefulSetUpdateStrategy({
       type: 'RollingUpdate',
-      rollingUpdate: { partition: options.partition ?? 0 },
+      rollingUpdate: {
+        partition: options.partition ?? 0,
+        maxUnavailable: options.maxUnavailable ?? PercentOrAbsolute.absolute(1),
+      },
     });
   }
 
