@@ -4,6 +4,7 @@ import * as configmap from './config-map';
 import * as k8s from './imports/k8s';
 import * as pvc from './pvc';
 import * as secret from './secret';
+import { ImagePullPolicy } from './container';
 
 /**
  * Represents a piece of storage in the cluster.
@@ -256,6 +257,31 @@ export class Volume extends Construct implements IStorage {
         volumeAttributes: options.attributes,
       },
     });
+  }
+
+  /**
+   * Populate the volume from an OCI (Open Container Initiative) image.
+   *
+   * An OCI image volume allows you to mount a container image as a volume in a Pod.
+   * This is useful for scenarios where you want to use container images to distribute
+   * data or configuration files, rather than running them as containers.
+   *
+   * The image is pulled from a container registry and mounted as a read-only or
+   * read-write volume depending on the configuration. This feature requires Kubernetes
+   * support for OCI image volumes (typically Kubernetes 1.31+).
+   *
+   * @see https://kubernetes.io/docs/concepts/storage/volumes/#image
+   *
+   * @param name The volume name.
+   * @param options Options for the OCI volume, including the image reference and pull policy.
+   */
+  public static fromOci(scope: Construct, id: string, name: string, options: OciVolumeOptions): Volume {
+    return new Volume(scope, id, name, {
+      image: {
+        reference: options.imageReference,
+        pullPolicy: options.pullPolicy ?? ImagePullPolicy.IF_NOT_PRESENT,
+      }
+    })
   }
 
   /**
@@ -762,4 +788,22 @@ export interface CsiVolumeOptions {
    * @default - undefined
    */
   readonly attributes?: { [key: string]: string };
+}
+
+/**
+ * Options for the OCI image based volume.
+ */
+export interface OciVolumeOptions {
+  /**
+   * The reference to the OCI image to mount as a volume.
+   * This should be a valid container image reference (e.g., "docker.io/library/nginx:latest").
+   */
+  readonly imageReference: string;
+
+  /**
+   * The image pull policy to use for the volume.
+   *
+   * @default ImagePullPolicy.IF_NOT_PRESENT
+   */
+  readonly pullPolicy?: ImagePullPolicy;
 }
